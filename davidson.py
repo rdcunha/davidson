@@ -1,16 +1,21 @@
 # Generalized Davidson solver
 
 import numpy as np
+import scipy.linalg
 
 from psi4 import core
 
+np.set_printoptions(precision=4, suppress=True)
+
 def preconditioner(residual, active_mask, A, A_w):
     precon_resid = np.zeros_like(residual)
+    diag = np.diagonal(A)
     for x in range(len(active_mask)):
-        if (A[x,x] - A_w[x]) < 1.0E-8:
-            precon_resid[:,x] = residual[:,x]
-        else:
-            precon_resid[:,x] = (1.0/(A[x,x] - A_w[x])) * residual[:,x]
+        for i in range(N):
+            if (diag[i] - A_w[x]) < 1.0E-8:
+                precon_resid[i,x] = residual[i,x]
+            else:
+                precon_resid[i,x] = (1.0/(diag[i] - A_w[x])) * residual[i,x]
     return precon_resid
 
 def davidson_solver(mat, ax_function, preconditioner, guess=None, no_eigs=5, maxiter=100):
@@ -46,15 +51,21 @@ def davidson_solver(mat, ax_function, preconditioner, guess=None, no_eigs=5, max
 N = 30
 no_eigs = 5
 nl = 5
-conv = 1.0E-8
-active_mask = [True for x in range(no_eigs)]
+conv = 1.0E-5
 # A = np.random.random_integers(-200,200,size=(N,N))
 randA = np.random.RandomState(13)
-A = randA.random_integers(-200,200,size=(N,N))
+A = randA.random_integers(-20,20,size=(N,N))
 A = (A + A.T)/2
 
-print("A\n",A)
-print("Eigvals of A: \n",np.linalg.eig(A)[0])
+# print("A\n",A)
+
+# np.savetxt("matrix.txt", A, fmt='%8.5f')
+
+ans = np.linalg.eig(A)[0]
+ans = np.sort(ans)
+np.savetxt("ans.txt", ans, fmt='%8.5f')
+#print("Eigvals of A: \n",np.linalg.eig(A)[0])
+print("Eigvals of A(sorted): \n", ans)
 
 # build guess vector matrix B
 ## sort diagonal elements in ascending order, generate corresponding unit vectors
@@ -62,42 +73,49 @@ x = A.diagonal()
 j = 0
 B = np.zeros_like(A)
 
-# print(x.argsort())
-for i in x.argsort():
-    B[i, j] = 1
+print(x.argsort())
+#for i in x.argsort():
+#    B[i, j] = 1
+#    j += 1
+
+for i in range(nl):
+    B[i,j] = 1
     j += 1
+
 B = B[::, :no_eigs]
-# print("B\n", B)
+print("B\n", B)
 
 converged=False
 count = 0
 ### begin loop
-while count<30:
-    # Apply QR decomposition on B to orthogonalize the new vectors wrto all other subspace vectors
-    ## orthogonalize preconditioned residuals against all other vectors in the search subspace
-    B, r = np.linalg.qr(B)
-    #print("B\n", B)
+while count<50:
+    active_mask = [True for x in range(no_eigs)]
+    print("Iteration number: ", count, "\n")
+    Blen = B.shape
+    # print("B\n",Blen,"\n", B)
+
     # compute sigma vectors corresponding to the new vectors sigma_i = A B_i
     sigma = np.zeros((nl, N))
 
-    sigma = np.dot(A, B)
-    sigma = sigma[::, :nl]
+    sigma = np.dot(A,B)
 
     #print("sigma\n", sigma)
     # compute subspace matrix A_v = Vtranspose sigma
     A_b = np.dot(B.T, sigma)
+    sigma = sigma[::, :nl]
 
     #print("Subspace matrix \n", A_b)
     # solve eigenvalue problem for subspace matrix; choose n lowest eigenvalue eigpairs
     A_w, A_v = np.linalg.eig(A_b)
 
-    #print("A_w\n", A_w, "\nA_v\n", A_v)
+    # print("A_w\n", A_w, "\nA_v\n", A_v)
     A_v = A_v[:, A_w.argsort()]
     A_w = A_w[A_w.argsort()]
-    # print("A_w (sorted)\n", A_w, "\nA_v (sorted)\n", A_v)
+    print("A_w (sorted)\n", A_w, "\nA_v (sorted)\n", A_v)
     # here, check if no residuals > max no residuals, if so, collapse subspace
 
-    if len(B[1]) >= N-(2*no_eigs):
+    if B.shape[1] >= N-(2*no_eigs):
+        print("Subspace too big. Collapsing.\n")
         B = np.dot(B, A_v)
         B = B[::, :no_eigs]
         nl = no_eigs
@@ -106,23 +124,34 @@ while count<30:
     ## residual_i = sigma * eigvec - eigval * B * eigvec
     residual = np.zeros((N, no_eigs))
     for i in range(no_eigs):
-        residual[:,i] = np.dot(sigma, A_v[:,i]) - A_w[i] * np.dot(B, A_v[:, i]) 
-    
+        # mat = A - A_w[i] * np.identity(N) 
+        #residual[:,i] = np.dot(mat, np.dot(B, A_v[:,i])) 
+        residual[:,i] = np.dot(sigma, A_v[:,i]) - A_w[i] * np.dot(B, A_v[:,i]) 
+
+    res_s = residual.shape
+    print("Shape of residual matrix:",res_s, "\n")
+    print("residual matrix:\n", residual)
     for i in range(no_eigs):
         if np.linalg.norm(residual[:,i]) < conv:
             residual = np.delete(residual, i, 1)
+            active_mask = active_mask[:-1]
 
-    #print("residual matrix:\n", residual)
     ## check for convergence by norm of residuals
-    norm = np.mean(residual, axis=0)**2
-  #  print("Norm\n", norm)
+    # norm = np.mean(residual, axis=0)**2
+    norm = np.zeros(no_eigs)
+    for i in range(no_eigs):
+        norm[i] = np.linalg.norm(residual[:,i])
+    #if(np.allclose(norm,norm1)):
+    #    print("These two are the same.\n")
+    #print("Norm\n", norm)
+    print("Norm\n", norm)
     if(norm.all() < conv):
         converged = True
         break
     ## else apply the preconditioner (A_ii - A_v_i)^-1
     else:
         precon_resid = preconditioner(residual, active_mask, A, A_w)
-   #     print("precon_resid matrix\n", precon_resid)
+        print("precon_resid matrix\n", precon_resid)
     ## normalize and add to search subspace if they're larger than a threshold
         for i in range(no_eigs):
             to_append = precon_resid[:,i]
@@ -133,9 +162,14 @@ while count<30:
                 B = np.append(B, precon_resid[:,i])
                 nl += 1
                 B = B.reshape(nl,N).T
+                # Apply QR decomposition on B to orthogonalize the new vectors wrto all other subspace vectors
+                ## orthogonalize preconditioned residuals against all other vectors in the search subspace
+                B, r = np.linalg.qr(B, mode='complete')
+                B = B[::, :nl]
                 #print(B)
     #print("nl\n", nl)
     #print("new B matrix\n", B)
+
         
     print("converged = ", converged)
     count += 1 
