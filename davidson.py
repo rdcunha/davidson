@@ -11,10 +11,10 @@ def preconditioner(residual, active_mask, A, A_w):
     diag = np.diagonal(A)
     for x in range(len(active_mask)):
         for i in range(N):
-            if np.abs((diag[i] - A_w[x])) < 1.0E-8:
+            if np.absolute(diag[i] - A_w[x]) < 1.0E-8:
                 precon_resid[i,x] = residual[i,x]
             else:
-                precon_resid[i,x] = (1.0/(diag[i] - A_w[x])) * residual[i,x]
+                precon_resid[i,x] = residual[i,x]* (1.0/(diag[i] - A_w[x])) 
     return precon_resid
 
 def davidson_solver(mat, ax_function, preconditioner, guess=None, no_eigs=5, maxiter=100):
@@ -53,7 +53,7 @@ nl = 10
 conv = 1.0E-5
 # A = np.random.random_integers(-200,200,size=(N,N))
 randA = np.random.RandomState(13)
-A = randA.random_integers(-2,2,size=(N,N))
+A = randA.randn(N,N)
 A = (A + A.T)/2
 
 # print("A\n",A)
@@ -87,10 +87,13 @@ print("B\n", B)
 converged=False
 count = 0
 ### begin loop
-while count<10:
+while count<3:
     active_mask = [True for x in range(no_eigs)]
     print("Iteration number: ", count, "\n")
-    Blen = B.shape
+    # Apply QR decomposition on B to orthogonalize the new vectors wrto all other subspace vectors
+    ## orthogonalize preconditioned residuals against all other vectors in the search subspace
+    B, r = np.linalg.qr(B)
+    #Blen = B.shape
     # print("B\n",Blen,"\n", B)
 
     # compute sigma vectors corresponding to the new vectors sigma_i = A B_i
@@ -118,17 +121,15 @@ while count<10:
     if B.shape[1] >= N-(2*no_eigs):
         print("Subspace too big. Collapsing.\n")
         B = np.dot(B, A_v)
-        B, r = np.linalg.qr(B)
-        B = B[::, :no_eigs]
         nl = no_eigs
         continue
     # else, build residual matrix
     ## residual_i = sigma * eigvec - eigval * B * eigvec
     residual = np.zeros((N, no_eigs))
     for i in range(no_eigs):
-        # mat = A - A_w[i] * np.identity(N) 
-        #residual[:,i] = np.dot(mat, np.dot(B, A_v[:,i])) 
-        residual[:,i] = np.dot(sigma, A_v[:,i]) - A_w[i] * np.dot(B, A_v[:,i]) 
+        #mat = A - A_w[i] * np.identity(N) 
+        #residual[:,i] = np.dot(np.dot(mat, B), A_v[:,i]) 
+        residual[:,i] = np.dot(sigma, A_v[:,i]) - (A_w[i] * np.dot(B, A_v[:,i])) 
 
     #res_s = residual.shape
     #print("Shape of residual matrix:",res_s, "\n")
@@ -165,15 +166,12 @@ while count<10:
                 #print("Norm larger than conv. Appending. B before: ")
                 #print(B)
                 #print("norm of precon_resid to append: \n", np.linalg.norm(to_append))
-                to_append = precon_resid[:,i]/np.linalg.norm(to_append)
-                #print("norm of precon_resid to append: \n", np.linalg.norm(to_append))
+                to_append = precon_resid[:,i] * (1.0/np.linalg.norm(to_append))
+                #print("precon_resid to append: \n", to_append)
                 B = np.append(B, to_append)
                 nl += 1
                 B = B.reshape(N,nl)
                 #print("B after:\n",B)
-                # Apply QR decomposition on B to orthogonalize the new vectors wrto all other subspace vectors
-                ## orthogonalize preconditioned residuals against all other vectors in the search subspace
-                B, r = np.linalg.qr(B)
     print("nl\n", nl)
     #print("new B matrix\n", B)
 
