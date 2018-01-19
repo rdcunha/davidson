@@ -50,7 +50,7 @@ no_eigs = 5
 nli = 5
 nl = nli
 conv = 1.0E-10
-d_tol = 1.0E-11
+d_tol = 1.0E-10
 maxiter = 100
 spf = 0.0001
 # A = np.random.random_integers(-200,200,size=(N,N))
@@ -65,10 +65,9 @@ A = (A + A.T)/2
 
 # np.savetxt("matrix.txt", A, fmt='%8.5f')
 
-ans = np.linalg.eig(A)[0]
-ans = np.sort(ans)
-np.savetxt("ans.txt", ans, fmt='%8.5f')
-#print("Eigvals of A: \n",np.linalg.eig(A)[0])
+#ans = np.linalg.eig(A)[0]
+#ans = np.sort(ans)
+#np.savetxt("ans.txt", ans, fmt='%8.5f')
 #print("Eigvals of A(sorted): \n", ans)
 
 # build guess vector matrix B
@@ -120,16 +119,17 @@ while count < maxiter:
 
     #print("A_w\n", A_w, "\nA_v\n", A_v)
     A_v = A_v[:, A_w.argsort()]
-    #A_v = A_v[::,:no_eigs]
+    A_v = A_v[::,:no_eigs]
     A_w = A_w[A_w.argsort()]
     A_w = A_w[:no_eigs]
-    print("A_w (sorted)\n", A_w, "\nA_v (sorted)\n", A_v)
+    print("A_w (sorted)\n", A_w) # "\nA_v (sorted)\n", A_v)
     # here, check if no residuals > max no residuals, if so, collapse subspace
     sub_count = A_v.shape[0]
 
     if sub_count >= N-(2*no_eigs):
         print("Subspace too big. Collapsing.\n")
-        B = np.dot(B[:,:nl], A_v)
+        B = np.zeros_like(A)
+        B[:,:nli] = np.dot(B[:,:nl], A_v)
         nl = nli
         continue
     # else, build residual matrix
@@ -148,14 +148,14 @@ while count < maxiter:
     ## normalize and add to search subspace if they're larger than a threshold
         #print("Preconditioned residual ",i, precon_resid[:,i])
         if np.linalg.norm(precon_resid) > d_tol:
-            #print("Norm larger than conv. Appending. B before: ")
+            print("Norm larger than conv. Appending.")
             #print(B)
             #print("norm of precon_resid to append: \n", np.linalg.norm(to_append))
-            B[:,nl+1] = precon_resid/np.linalg.norm(precon_resid)
+            B[:,nl+1] = precon_resid
             nl += 1
         #print("B after:\n",B)
         ## check for convergence by norm of residuals
-            print("precon_resid to append: \n", precon_resid)
+            #print("precon_resid to append: \n", precon_resid)
         norm[i] = np.linalg.norm(precon_resid)
     check = norm < conv
     print("Norm\n", norm)
