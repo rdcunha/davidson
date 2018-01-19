@@ -12,16 +12,14 @@ def preconditioner(residual, x, A, A_w):
     precon_resid = residual / (A_w[x] - diag[x]) 
     return precon_resid
 
-def davidson_solver(mat, ax_function, preconditioner, guess=None, no_eigs=5, maxiter=100):
+def davidson_solver(ax_function, preconditioner, guess=None, no_eigs=5, maxiter=100):
     """
     Solves for the lowest few eigenvalues and eigenvectors of the given real symmetric matrix
 
     Parameters
     -----------
-    mat : psi4.core.Matrix object
-        The matrix whose eigenvalues are sought
     ax_function : function
-        Takes in ?? Returns the Matrix-vector product.
+        Takes in a guess vector and returns the Matrix-vector product.
     preconditioner : function
         Takes in a list of :py:class:`~psi4.core.Matrix` objects and a mask of active indices. Returns the preconditioned value.
     guess : list of :py:class:`~psi4.core.Matrix`
@@ -64,8 +62,6 @@ A = (A + A.T)/2
 x = A.diagonal()
 j = 0
 B = np.zeros_like(A)
-
-#print(x.argsort())
 for i in x.argsort():
     B[i, j] = 1
     j += 1
@@ -77,15 +73,11 @@ A_w_old = np.ones(nli)
 ### begin loop
 while count < maxiter:
     active_mask = [True for x in range(nl)]
-    print("Iteration number: ", count, "\n")
     # Apply QR decomposition on B to orthogonalize the new vectors wrto all other subspace vectors
     ## orthogonalize preconditioned residuals against all other vectors in the search subspace
     B, r = np.linalg.qr(B)
-    Blen = B.shape
-    print("B\n",Blen,"\n")
 
     # compute sigma vectors corresponding to the new vectors sigma_i = A B_i
-    sigma = np.zeros((N, nli))
     sigma = np.dot(A,B[:,:nl])
 
     # compute subspace matrix A_b = Btranspose sigma
@@ -120,18 +112,19 @@ while count < maxiter:
 
     ## normalize and add to search subspace if they're larger than a threshold
         if np.linalg.norm(precon_resid) > d_tol:
-            print("Norm larger than tolerance. Appending.")
             B[:,nl+1] = precon_resid
             nl += 1
 
     # check for convergence by diff of eigvals and residual norms
     check = norm < r_conv
-    print("Norm\n", norm)
     eig_norm = np.linalg.norm(A_w[:no_eigs] - A_w_old[:no_eigs])
     A_w_old = A_w
     if(check.all() == True and eig_norm < e_conv):
         converged = True
-        print("converged.")
         break
     count += 1 
 
+if converged:
+    print("Davidson converged at iteration number {}. \n Eigenvalues: {} \n Eigenvectors: {}".format(count, A_w[:no_eigs], A_v[:,:no_eigs]))
+else:
+    print("Davidson did not converge. Max iterations exceeded.")
