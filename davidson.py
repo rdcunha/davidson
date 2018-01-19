@@ -4,16 +4,15 @@ import numpy as np
 
 from psi4 import core
 
-np.set_printoptions(precision=9, suppress=True)
+np.set_printoptions(precision=12, suppress=True)
 
-def preconditioner(residual, active_mask, A, A_w):
+def preconditioner(residual, x, A, A_w):
     precon_resid = np.zeros_like(residual)
     diag = np.diagonal(A)
-    for x in range(len(active_mask)):
-        #if np.absolute(diag[x] - A_w[x]) < 1.0E-8:
-        #    precon_resid[x] = residual[x]
-        #else:
-        precon_resid[x] = residual[x] / (A_w[x] - diag[x]) 
+    if np.absolute(A_w[x] - diag[x]) < 1E-6:
+        precon_resid = residual
+    else:
+        precon_resid = residual / (A_w[x] - diag[x]) 
     return precon_resid
 
 def davidson_solver(mat, ax_function, preconditioner, guess=None, no_eigs=5, maxiter=100):
@@ -49,10 +48,11 @@ def davidson_solver(mat, ax_function, preconditioner, guess=None, no_eigs=5, max
 N = 500
 no_eigs = 5
 nli = 5
-conv = 1.0E-9
-d_tol = 1.0E-9
-maxiter = 10
-spf = 0.01
+nl = nli
+conv = 1.0E-10
+d_tol = 1.0E-11
+maxiter = 100
+spf = 0.0001
 # A = np.random.random_integers(-200,200,size=(N,N))
 A = np.zeros((N,N))
 randA = np.random.RandomState(13)
@@ -65,9 +65,9 @@ A = (A + A.T)/2
 
 # np.savetxt("matrix.txt", A, fmt='%8.5f')
 
-#ans = np.linalg.eig(A)[0]
-#ans = np.sort(ans)
-#np.savetxt("ans.txt", ans, fmt='%8.5f')
+ans = np.linalg.eig(A)[0]
+ans = np.sort(ans)
+np.savetxt("ans.txt", ans, fmt='%8.5f')
 #print("Eigvals of A: \n",np.linalg.eig(A)[0])
 #print("Eigvals of A(sorted): \n", ans)
 
@@ -91,9 +91,10 @@ for i in x.argsort():
 
 converged=False
 count = 0
+sub_count = nli
 ### begin loop
-for nl in range(nli, maxiter*nli):
-    active_mask = [True for x in range(no_eigs)]
+while count < maxiter:
+    active_mask = [True for x in range(sub_count)]
     print("Iteration number: ", count, "\n")
     # Apply QR decomposition on B to orthogonalize the new vectors wrto all other subspace vectors
     ## orthogonalize preconditioned residuals against all other vectors in the search subspace
@@ -102,7 +103,7 @@ for nl in range(nli, maxiter*nli):
     print("B\n",Blen,"\n")
 
     # compute sigma vectors corresponding to the new vectors sigma_i = A B_i
-    sigma = np.zeros((N, nl))
+    sigma = np.zeros((N, nli))
 
     sigma = np.dot(A,B[:,:nl])
     slen = sigma.shape
@@ -119,29 +120,29 @@ for nl in range(nli, maxiter*nli):
 
     #print("A_w\n", A_w, "\nA_v\n", A_v)
     A_v = A_v[:, A_w.argsort()]
-    A_v = A_v[::,:no_eigs]
+    #A_v = A_v[::,:no_eigs]
     A_w = A_w[A_w.argsort()]
     A_w = A_w[:no_eigs]
     print("A_w (sorted)\n", A_w, "\nA_v (sorted)\n", A_v)
     # here, check if no residuals > max no residuals, if so, collapse subspace
+    sub_count = A_v.shape[0]
 
-    #if B.shape[1] >= N-(2*no_eigs):
-    #    print("Subspace too big. Collapsing.\n")
-    #    B = np.dot(B, A_v)
-    #    nl = no_eigs
-    #    continue
+    if sub_count >= N-(2*no_eigs):
+        print("Subspace too big. Collapsing.\n")
+        B = np.dot(B[:,:nl], A_v)
+        nl = nli
+        continue
     # else, build residual matrix
     ## residual_i = sigma * eigvec - eigval * B * eigvec
     #residual = np.zeros((N, no_eigs))
-    norm = np.zeros(no_eigs)
-    sub_count = A_v.shape[0]
+    norm = np.zeros(nli)
     for i in range(0, nli):
         mat = A - A_w[i] * np.identity(N) 
         residual = np.dot(mat, np.dot(B[:,:sub_count], A_v[:,i]))
         #residual[:,i] = np.dot(sigma, A_v[:,i]) - (A_w[i] * np.dot(B, A_v[:,i])) 
 
     ##apply the preconditioner (A_ii - A_v_i)^-1
-        precon_resid = preconditioner(residual, active_mask, A, A_w)
+        precon_resid = preconditioner(residual, i, A, A_w)
         #print("precon_resid matrix\n", precon_resid)
 
     ## normalize and add to search subspace if they're larger than a threshold
@@ -150,7 +151,8 @@ for nl in range(nli, maxiter*nli):
             #print("Norm larger than conv. Appending. B before: ")
             #print(B)
             #print("norm of precon_resid to append: \n", np.linalg.norm(to_append))
-            B[:,nl+i] = precon_resid/np.linalg.norm(precon_resid)
+            B[:,nl+1] = precon_resid/np.linalg.norm(precon_resid)
+            nl += 1
         #print("B after:\n",B)
         ## check for convergence by norm of residuals
             print("precon_resid to append: \n", precon_resid)
