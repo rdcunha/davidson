@@ -25,7 +25,7 @@ def preconditioner(residual, x, A, A_w):
     precon_resid = residual / (A_w[x] - diag[x]) 
     return precon_resid
 
-def davidson_solver(ax_function, preconditioner, guess=None, no_eigs=5, maxiter=100):
+def davidson_solver(ax_function, preconditioner, guess, e_conv=1.0E-8, r_conv=None, no_eigs=1, maxiter=100):
     """
     Solves for the lowest few eigenvalues and eigenvectors of the given real symmetric matrix
 
@@ -36,7 +36,11 @@ def davidson_solver(ax_function, preconditioner, guess=None, no_eigs=5, maxiter=
     preconditioner : function
         Takes in a list of :py:class:`~psi4.core.Matrix` objects and a mask of active indices. Returns the preconditioned value.
     guess : list of :py:class:`~psi4.core.Matrix`
-        Starting vectors, if None a unit vector guess
+        Starting vectors, required
+    e_conv : float
+        Convergence tolerance for eigenvalues
+    r_conv : float
+        Convergence tolerance for residual vectors
     no_eigs : int
         Number of eigenvalues needed
     maxiter : int
@@ -53,26 +57,25 @@ def davidson_solver(ax_function, preconditioner, guess=None, no_eigs=5, maxiter=
 
     """
 
-    nli = 10
-    nl = nli
-    r_conv = 1.0E-6
-    e_conv = 1.0E-8
+    if r_conv == None:
+        r_conv = e_conv * 100
     d_tol = 1.0E-8
-    maxiter = 100
 
-    # if no guess given, build guess vector matrix B
-    ## sort diagonal elements in ascending order, generate corresponding unit vectors
-    if guess == None:
-        j = 0
-        B = np.zeros((N,N))
-        for i in range(nli):
-            B[i, j] = 1
-            j += 1
+    # using the shape of the guess vectors to set the dimension of the matrix
+    N = guess.shape[0]
 
+    #sanity check
+    nli = guess.shape[1]
+    if nli < no_eigs:
+        raise ValueError("Not enough guess vectors provided!")
+
+    nl = nli
     converged=False
     count = 0
     sub_count = nli
     A_w_old = np.ones(nli)
+    B = np.zeros((N,N))
+
     ### begin loop
     while count < maxiter:
         active_mask = [True for x in range(nl)]
@@ -136,4 +139,8 @@ def davidson_solver(ax_function, preconditioner, guess=None, no_eigs=5, maxiter=
         print("Davidson did not converge. Max iterations exceeded.")
 
 if __name__ == "__main__":
-    davidson_solver(ax_function, preconditioner) 
+    N = 1000
+    n_g = 10
+    n_e = 5
+    g_vec = np.eye(N)[:,:n_g]
+    davidson_solver(ax_function, preconditioner, g_vec, no_eigs=n_e)
