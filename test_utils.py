@@ -151,7 +151,7 @@ class NumpyRandomTestCase(TestCase):
         """Explicitly diagonalize the matrix return sorted/truncated val,vec"""
         full_val, full_vec = np.linalg.eig(self.matrix)
         idx = full_val.argsort()[:self.no_eigs]
-        return full_vall[idx], full_vec[:,idx]
+        return full_val[idx], full_vec[:,idx]
 
 class EOMCCSDComparePsi4TestCase(TestCase):
     """More realistic Davidson test case using the EOMCC code from psi4numpy"""
@@ -163,12 +163,12 @@ class EOMCCSDComparePsi4TestCase(TestCase):
         psi4.core.set_output_file('output.dat', False)
         self.mol = psi4.geometry(molecule_str)
         psi4.set_options({'basis':basis, 'roots_per_irrep':[no_eigs]})
-        ccsd = HelperCCEnergy(mol)
+        ccsd = HelperCCEnergy(self.mol)
         ccsd.compute_energy()
         cchbar = HelperCCHbar(ccsd)
         self.cceom = HelperCCEom(ccsd, cchbar)
         self.D = np.hstack((self.cceom.Dia.flatten(), self.cceom.Dijab.flatten()))
-        B_idx = self.D[:self.cceom.nsingles].argsort(:no_eigs)
+        B_idx = self.D[:self.cceom.nsingles].argsort()[:no_eigs]
         guess = np.eye(self.cceom.nsingles + self.cceom.ndoubles)[:, B_idx]
         super(EOMCCSDComparePsi4TestCase, self).__init__(name, guess, no_eigs, **dv_args)
 
@@ -211,12 +211,12 @@ class EOMCCSDCompareFullDiagTestCase(TestCase):
         psi4.core.set_output_file('output.dat', False)
         self.mol = psi4.geometry(molecule_str)
         psi4.set_options({'basis':basis, 'roots_per_irrep':[no_eigs]})
-        ccsd = HelperCCEnergy(mol)
+        ccsd = HelperCCEnergy(self.mol)
         ccsd.compute_energy()
         cchbar = HelperCCHbar(ccsd)
         self.cceom = HelperCCEom(ccsd, cchbar)
         self.D = np.hstack((self.cceom.Dia.flatten(), self.cceom.Dijab.flatten()))
-        B_idx = self.D[:self.cceom.nsingles].argsort(:no_eigs)
+        B_idx = self.D[:self.cceom.nsingles].argsort()[:no_eigs]
         guess = np.eye(self.cceom.nsingles + self.cceom.ndoubles)[:, B_idx]
         super(EOMCCSDCompareFullDiagTestCase, self).__init__(name, guess, no_eigs, **dv_args)
 
