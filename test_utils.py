@@ -88,6 +88,11 @@ class TestCase(object):
         print("Running {}...".format(self.name))
         computed_vals, computed_vecs = davidson_solver(
             self.ax_function, self.preconditioner, self.guess, **self.dv_args)
+        if (computed_vals is not None) and (conputed_vecs is not None):
+            print(self._success("Davidson converged"))
+        else:
+            print(self._fail("Davidson converged"))
+            sys.exit(1)
         expected_vals, expected_vecs = self.expected_returns()
         if len(computed_vals) == self.no_eigs:
             print(self._success("# eigenvalues"))
