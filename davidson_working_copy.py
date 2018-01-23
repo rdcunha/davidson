@@ -6,6 +6,15 @@ from psi4 import core
 
 np.set_printoptions(precision=12, suppress=True)
 
+N = 1000
+spf = 0.0001
+A = np.zeros((N,N))
+randA = np.random.RandomState(13)
+for i in range(0,N):
+    A[i,i] = i + 1.0
+A = A + randA.randn(N,N)* spf
+A = (A + A.T)/2
+
 def ax_function(vec):
     ax = np.dot(A,vec)
     return ax
@@ -16,7 +25,7 @@ def preconditioner(residual, x, A, A_w):
     precon_resid = residual / (A_w[x] - diag[x]) 
     return precon_resid
 
-def davidson_solver(ax_function, preconditioner, guess, e_conv=1.0E-8, r_conv=None, no_eigs=1, max_vecs_per_root=10, maxiter=100):
+def davidson_solver(ax_function, preconditioner, guess, e_conv=1.0E-8, r_conv=None, no_eigs=1, maxiter=100):
     """
     Solves for the lowest few eigenvalues and eigenvectors of the given real symmetric matrix
 
@@ -65,7 +74,6 @@ def davidson_solver(ax_function, preconditioner, guess, e_conv=1.0E-8, r_conv=No
     count = 0
     sub_count = nli
     A_w_old = np.ones(nli)
-    max_ss_size = nli * max_vecs_per_root
     B = np.zeros((N,N))
 
     ### begin loop
@@ -93,7 +101,7 @@ def davidson_solver(ax_function, preconditioner, guess, e_conv=1.0E-8, r_conv=No
 
         # here, check if no residuals > max no residuals, if so, collapse subspace
         sub_count = A_v.shape[0]
-        if sub_count >= max_ss_size:
+        if sub_count >= N-(2*no_eigs):
             print("Subspace too big. Collapsing.\n")
             B = np.zeros((N,N))
             B[:,:nli] = np.dot(B[:,:nl], A_v)
@@ -130,3 +138,9 @@ def davidson_solver(ax_function, preconditioner, guess, e_conv=1.0E-8, r_conv=No
     else:
         print("Davidson did not converge. Max iterations exceeded.")
 
+if __name__ == "__main__":
+    N = 1000
+    n_g = 10
+    n_e = 5
+    g_vec = np.eye(N)[:,:n_g]
+    davidson_solver(ax_function, preconditioner, g_vec, no_eigs=n_e)
