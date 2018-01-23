@@ -6,15 +6,6 @@ from psi4 import core
 
 np.set_printoptions(precision=12, suppress=True)
 
-def ax_function(vec):
-    ax = np.dot(A,vec)
-    return ax
-
-def preconditioner(residual, x, A, A_w):
-    precon_resid = np.zeros_like(residual)
-    diag = np.diagonal(A)
-    precon_resid = residual / (A_w[x] - diag[x]) 
-    return precon_resid
 
 def davidson_solver(ax_function, preconditioner, guess, e_conv=1.0E-8, r_conv=None, no_eigs=1, max_vecs_per_root=10, maxiter=100):
     """
@@ -39,7 +30,7 @@ def davidson_solver(ax_function, preconditioner, guess, e_conv=1.0E-8, r_conv=No
 
     Returns
     -----------
-    
+
     Notes
     -----------
 
@@ -105,7 +96,7 @@ def davidson_solver(ax_function, preconditioner, guess, e_conv=1.0E-8, r_conv=No
         ## residual_i = sigma * eigvec - eigval * B * eigvec
         norm = np.zeros(nli)
         for i in range(0, nli):
-            mat = A - A_w[i] * np.identity(N) 
+            mat = A - A_w[i] * np.identity(N)
             residual = np.dot(mat, np.dot(B[:,:sub_count], A_v[:,i]))
 
             ## check for convergence by norm of residuals
@@ -125,10 +116,11 @@ def davidson_solver(ax_function, preconditioner, guess, e_conv=1.0E-8, r_conv=No
         if(check.all() == True and eig_norm < e_conv):
             converged = True
             break
-        count += 1 
+        count += 1
 
     if converged:
         print("Davidson converged at iteration number {}. \n Eigenvalues: {} \n Eigenvectors: {}".format(count, A_w[:no_eigs], A_v[:,:no_eigs]))
+        return A_w[:no_eigs], A_v[:, :no_eigs]
     else:
         print("Davidson did not converge. Max iterations exceeded.")
-
+        return None, None
