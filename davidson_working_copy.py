@@ -25,7 +25,7 @@ def preconditioner(residual, x, A, A_w):
     precon_resid = residual / (A_w[x] - diag[x]) 
     return precon_resid
 
-def davidson_solver(ax_function, preconditioner, guess, e_conv=1.0E-8, r_conv=None, no_eigs=1, maxiter=100):
+def davidson_solver(ax_function, preconditioner, guess, e_conv=1.0E-8, r_conv=None, no_eigs=1, max_vecs_per_root=10, maxiter=100):
     """
     Solves for the lowest few eigenvalues and eigenvectors of the given real symmetric matrix
 
@@ -64,7 +64,7 @@ def davidson_solver(ax_function, preconditioner, guess, e_conv=1.0E-8, r_conv=No
     # using the shape of the guess vectors to set the dimension of the matrix
     N = guess.shape[0]
 
-    #sanity check
+    #sanity check, guess subspace must be at least equal to number of eigenvalues
     nli = guess.shape[1]
     if nli < no_eigs:
         raise ValueError("Not enough guess vectors provided!")
@@ -74,7 +74,9 @@ def davidson_solver(ax_function, preconditioner, guess, e_conv=1.0E-8, r_conv=No
     count = 0
     sub_count = nli
     A_w_old = np.ones(nli)
+    max_ss_size = nli * max_vecs_per_root
     B = np.zeros((N,N))
+    B[:,:nli] = guess
 
     ### begin loop
     while count < maxiter:
@@ -101,10 +103,11 @@ def davidson_solver(ax_function, preconditioner, guess, e_conv=1.0E-8, r_conv=No
 
         # here, check if no residuals > max no residuals, if so, collapse subspace
         sub_count = A_v.shape[0]
-        if sub_count >= N-(2*no_eigs):
+        if sub_count >= max_ss_size:
             print("Subspace too big. Collapsing.\n")
-            B = np.zeros((N,N))
-            B[:,:nli] = np.dot(B[:,:nl], A_v)
+            Bnew = np.zeros((N,N))
+            Bnew[:,:nli] = np.dot(B[:,:nl], A_v[:,:nli])
+            B = Bnew
             nl = nli
             continue
         # else, build residual matrix
@@ -143,4 +146,4 @@ if __name__ == "__main__":
     n_g = 10
     n_e = 5
     g_vec = np.eye(N)[:,:n_g]
-    davidson_solver(ax_function, preconditioner, g_vec, no_eigs=n_e)
+    davidson_solver(ax_function, preconditioner, g_vec, max_vecs_per_root=20, no_eigs=n_e)

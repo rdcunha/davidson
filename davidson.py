@@ -55,7 +55,7 @@ def davidson_solver(ax_function, preconditioner, guess, e_conv=1.0E-8, r_conv=No
     # using the shape of the guess vectors to set the dimension of the matrix
     N = guess.shape[0]
 
-    #sanity check
+    #sanity check, guess subspace must be at least equal to number of eigenvalues
     nli = guess.shape[1]
     if nli < no_eigs:
         raise ValueError("Not enough guess vectors provided!")
@@ -67,6 +67,7 @@ def davidson_solver(ax_function, preconditioner, guess, e_conv=1.0E-8, r_conv=No
     A_w_old = np.ones(nli)
     max_ss_size = nli * max_vecs_per_root
     B = np.zeros((N,N))
+    B[:,:nli] = guess
 
     ### begin loop
     while count < maxiter:
@@ -95,8 +96,9 @@ def davidson_solver(ax_function, preconditioner, guess, e_conv=1.0E-8, r_conv=No
         sub_count = A_v.shape[0]
         if sub_count >= max_ss_size:
             print("Subspace too big. Collapsing.\n")
-            B = np.zeros((N,N))
-            B[:,:nli] = np.dot(B[:,:nl], A_v)
+            Bnew = np.zeros((N,N))
+            Bnew[:,:nli] = np.dot(B[:,:nl], A_v[:,:nli])
+            B = Bnew
             nl = nli
             continue
         # else, build residual matrix
