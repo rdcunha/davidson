@@ -170,7 +170,7 @@ class EOMCCSDComparePsi4TestCase(TestCase):
         self.D = np.hstack((self.cceom.Dia.flatten(), self.cceom.Dijab.flatten()))
         B_idx = self.D[:self.cceom.nsingles].argsort(:no_eigs)
         guess = np.eye(self.cceom.nsingles + self.cceom.ndoubles)[:, B_idx]
-        super(EOMCCSDTestCase, self).__init__(name, guess, no_eigs, **dv_args)
+        super(EOMCCSDComparePsi4TestCase, self).__init__(name, guess, no_eigs, **dv_args)
 
     def preconditioner(self, r_vector, index, approx_eigval):
         return r_vector / (approx_eigval - self.D[index])
@@ -194,6 +194,10 @@ class EOMCCSDComparePsi4TestCase(TestCase):
             psi4_vectors.append(None)
         return psi4_ex_e, psi4_vectors
 
+    def run(self):
+        """Work around for arg based switching"""
+        super(EOMCCSDComparePsi4TestCase, self).run(check_vectors=False)
+
 class EOMCCSDCompareFullDiagTestCase(TestCase):
     """**Very Expensive, using sigma vector function to build up the whole
     matrix and then explicitly diagonalize it, useful only to check vectors
@@ -214,7 +218,7 @@ class EOMCCSDCompareFullDiagTestCase(TestCase):
         self.D = np.hstack((self.cceom.Dia.flatten(), self.cceom.Dijab.flatten()))
         B_idx = self.D[:self.cceom.nsingles].argsort(:no_eigs)
         guess = np.eye(self.cceom.nsingles + self.cceom.ndoubles)[:, B_idx]
-        super(EOMCCSDTestCase, self).__init__(name, guess, no_eigs, **dv_args)
+        super(EOMCCSDCompareFullDiagTestCase, self).__init__(name, guess, no_eigs, **dv_args)
 
     def preconditioner(self, r_vector, index, approx_eigval):
         return r_vector / (approx_eigval - self.D[index])
