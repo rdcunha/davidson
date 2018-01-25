@@ -44,8 +44,8 @@ def ndot(input_string, op1, op2, prefactor=None):
     # Tensordot axes
     left_pos, right_pos = (), ()
     for s in idx_removed:
-        left_pos += (input_left.find(s),)
-        right_pos += (input_right.find(s),)
+        left_pos += (input_left.find(s), )
+        right_pos += (input_right.find(s), )
     tdot_axes = (left_pos, right_pos)
 
     # Get result ordering
@@ -69,23 +69,27 @@ def ndot(input_string, op1, op2, prefactor=None):
     # Matrix multiply
     # No transpose needed
     if input_left[-rs:] == input_right[:rs]:
-        new_view = np.dot(op1.reshape(dim_left, dim_removed),
-                          op2.reshape(dim_removed, dim_right))
+        new_view = np.dot(
+            op1.reshape(dim_left, dim_removed),
+            op2.reshape(dim_removed, dim_right))
 
     # Transpose both
     elif input_left[:rs] == input_right[-rs:]:
-        new_view = np.dot(op1.reshape(dim_removed, dim_left).T,
-                          op2.reshape(dim_right, dim_removed).T)
+        new_view = np.dot(
+            op1.reshape(dim_removed, dim_left).T,
+            op2.reshape(dim_right, dim_removed).T)
 
     # Transpose right
     elif input_left[-rs:] == input_right[-rs:]:
-        new_view = np.dot(op1.reshape(dim_left, dim_removed),
-                          op2.reshape(dim_right, dim_removed).T)
+        new_view = np.dot(
+            op1.reshape(dim_left, dim_removed),
+            op2.reshape(dim_right, dim_removed).T)
 
     # Tranpose left
     elif input_left[:rs] == input_right[:rs]:
-        new_view = np.dot(op1.reshape(dim_removed, dim_left).T,
-                          op2.reshape(dim_removed, dim_right))
+        new_view = np.dot(
+            op1.reshape(dim_removed, dim_left).T,
+            op2.reshape(dim_removed, dim_right))
 
     # If we have to transpose vector-matrix, einsum is faster
     elif (len(keep_left) == 0) or (len(keep_right) == 0):
@@ -116,7 +120,6 @@ def ndot(input_string, op1, op2, prefactor=None):
 
 
 class HelperCCEnergy(object):
-
     def __init__(self, mol, freeze_core=False, memory=2):
 
         if freeze_core:
@@ -128,13 +131,13 @@ class HelperCCEnergy(object):
 
         #print('Computing RHF reference.')
         psi4.core.set_active_molecule(mol)
-        psi4.set_module_options('SCF', {'SCF_TYPE':'PK'})
-        psi4.set_module_options('SCF', {'E_CONVERGENCE':10e-13})
-        psi4.set_module_options('SCF', {'D_CONVERGENCE':10e-13})
+        psi4.set_module_options('SCF', {'SCF_TYPE': 'PK'})
+        psi4.set_module_options('SCF', {'E_CONVERGENCE': 10e-13})
+        psi4.set_module_options('SCF', {'D_CONVERGENCE': 10e-13})
 
         # Core is frozen by default
         if not freeze_core:
-            psi4.set_module_options('CCENERGY', {'FREEZE_CORE':'FALSE'})
+            psi4.set_module_options('CCENERGY', {'FREEZE_CORE': 'FALSE'})
 
         self.rhf_e, self.wfn = psi4.energy('SCF', return_wfn=True)
         #print('RHF Final Energy                          % 16.10f\n' % (self.rhf_e))
@@ -173,7 +176,8 @@ class HelperCCEnergy(object):
             self.npC = np.asarray(self.C)
 
         self.mints = psi4.core.MintsHelper(self.wfn.basisset())
-        H = np.asarray(self.mints.ao_kinetic()) + np.asarray(self.mints.ao_potential())
+        H = np.asarray(self.mints.ao_kinetic()) + np.asarray(
+            self.mints.ao_potential())
         self.nmo = H.shape[0]
 
         # Update H, transform to MO basis
@@ -181,17 +185,18 @@ class HelperCCEnergy(object):
 
         #print('Starting AO ->  MO transformation...')
 
-        ERI_Size = self.nmo  * 128.e-9
+        ERI_Size = self.nmo * 128.e-9
         memory_footprint = ERI_Size * 5
         if memory_footprint > self.memory:
             psi.clean()
-            raise Exception("Estimated memory utilization (%4.2f GB) exceeds numpy_memory \
-                            limit of %4.2f GB."
-                                                % (memory_footprint, self.memory))
+            raise Exception(
+                "Estimated memory utilization (%4.2f GB) exceeds numpy_memory \
+                            limit of %4.2f GB." %
+                (memory_footprint, self.memory))
 
         # Integral generation from Psi4's MintsHelper
         self.MO = np.asarray(self.mints.mo_eri(self.C, self.C, self.C, self.C))
-        self.MO = self.MO.swapaxes(1,2)
+        self.MO = self.MO.swapaxes(1, 2)
         #print("Size of the ERI tensor is %4.2f GB, %d basis functions." % (ERI_Size, self.nmo))
 
         # Update nocc and nvirt
@@ -203,38 +208,47 @@ class HelperCCEnergy(object):
         self.slice_o = slice(self.nfzc, self.nocc + self.nfzc)
         self.slice_v = slice(self.nocc + self.nfzc, self.nmo)
         self.slice_a = slice(0, self.nmo)
-        self.slice_dict = {'f': self.slice_nfzc, 'o' : self.slice_o, 'v' : self.slice_v,
-                           'a' : self.slice_a}
+        self.slice_dict = {
+            'f': self.slice_nfzc,
+            'o': self.slice_o,
+            'v': self.slice_v,
+            'a': self.slice_a
+        }
 
         # Compute Fock matrix
-        self.F = H + 2.0 * np.einsum('pmqm->pq', self.MO[:, self.slice_o, :, self.slice_o])
-        self.F -= np.einsum('pmmq->pq', self.MO[:, self.slice_o, self.slice_o, :])
+        self.F = H + 2.0 * np.einsum('pmqm->pq',
+                                     self.MO[:, self.slice_o, :, self.slice_o])
+        self.F -= np.einsum('pmmq->pq',
+                            self.MO[:, self.slice_o, self.slice_o, :])
 
         ### Build D matrices
         Focc = np.diag(self.F)[self.slice_o]
         Fvir = np.diag(self.F)[self.slice_v]
 
         #print(Focc)
-        tmp = Focc.reshape(-1,1)
+        tmp = Focc.reshape(-1, 1)
         #print(tmp)
         #print(Fvir)
 
         self.Dia = Focc.reshape(-1, 1) - Fvir
         #print(self.Dia)
-        self.Dijab = Focc.reshape(-1, 1, 1, 1) + Focc.reshape(-1, 1, 1) - Fvir.reshape(-1, 1) - Fvir
+        self.Dijab = Focc.reshape(-1, 1, 1, 1) + Focc.reshape(
+            -1, 1, 1) - Fvir.reshape(-1, 1) - Fvir
 
         ### Construct initial guess
         #print('Building initial guess...')
         # t^a_i
         self.t1 = np.zeros((self.nocc, self.nvirt))
         # t^{ab}_{ij}
-        self.t2 = self.MO[self.slice_o, self.slice_o, self.slice_v, self.slice_v] / self.Dijab
+        self.t2 = self.MO[self.slice_o, self.slice_o, self.slice_v, self.
+                          slice_v] / self.Dijab
 
         #print('\n..initialized CCSD in %.3f seconds.\n' % (time.time() - time_init))
 
     # occ orbitals i, j, k, l, m, n
     # virt orbitals a, b, c, d, e, f
     # all oribitals p, q, r, s, t, u, v
+
     def get_MO(self, string):
         if len(string) != 4:
             psi4.core.clean()
@@ -248,14 +262,12 @@ class HelperCCEnergy(object):
             raise Exception('get_F: string %s must have 4 elements.' % string)
         return self.F[self.slice_dict[string[0]], self.slice_dict[string[1]]]
 
-
     #Bulid Eqn 9: tilde{\Tau})
     def build_tilde_tau(self):
         ttau = self.t2.copy()
         tmp = 0.5 * np.einsum('ia,jb->ijab', self.t1, self.t1)
         ttau += tmp
         return ttau
-
 
     #Build Eqn 10: \Tau)
     def build_tau(self):
@@ -264,7 +276,6 @@ class HelperCCEnergy(object):
         ttau += tmp
         return ttau
 
-
     #Build Eqn 3:
     def build_Fae(self):
         Fae = self.get_F('vv').copy()
@@ -272,14 +283,21 @@ class HelperCCEnergy(object):
         Fae -= ndot('me,ma->ae', self.get_F('ov'), self.t1, prefactor=0.5)
 
         Fae += ndot('mf,mafe->ae', self.t1, self.get_MO('ovvv'), prefactor=2.0)
-        Fae += ndot('mf,maef->ae', self.t1, self.get_MO('ovvv'), prefactor=-1.0)
+        Fae += ndot(
+            'mf,maef->ae', self.t1, self.get_MO('ovvv'), prefactor=-1.0)
 
-        Fae -= ndot('mnaf,mnef->ae', self.build_tilde_tau(), self.get_MO('oovv'), prefactor=2.0)
-        Fae -= ndot('mnaf,mnfe->ae', self.build_tilde_tau(), self.get_MO('oovv'), prefactor=-1.0)
-
+        Fae -= ndot(
+            'mnaf,mnef->ae',
+            self.build_tilde_tau(),
+            self.get_MO('oovv'),
+            prefactor=2.0)
+        Fae -= ndot(
+            'mnaf,mnfe->ae',
+            self.build_tilde_tau(),
+            self.get_MO('oovv'),
+            prefactor=-1.0)
 
         return Fae
-
 
     #Build Eqn 4:
     def build_Fmi(self):
@@ -288,20 +306,28 @@ class HelperCCEnergy(object):
         Fmi += ndot('ie,me->mi', self.t1, self.get_F('ov'), prefactor=0.5)
 
         Fmi += ndot('ne,mnie->mi', self.t1, self.get_MO('ooov'), prefactor=2.0)
-        Fmi += ndot('ne,mnei->mi', self.t1, self.get_MO('oovo'), prefactor=-1.0)
+        Fmi += ndot(
+            'ne,mnei->mi', self.t1, self.get_MO('oovo'), prefactor=-1.0)
 
-        Fmi += ndot('inef,mnef->mi', self.build_tilde_tau(), self.get_MO('oovv'), prefactor=2.0)
-        Fmi += ndot('inef,mnfe->mi', self.build_tilde_tau(), self.get_MO('oovv'), prefactor=-1.0)
+        Fmi += ndot(
+            'inef,mnef->mi',
+            self.build_tilde_tau(),
+            self.get_MO('oovv'),
+            prefactor=2.0)
+        Fmi += ndot(
+            'inef,mnfe->mi',
+            self.build_tilde_tau(),
+            self.get_MO('oovv'),
+            prefactor=-1.0)
         return Fmi
-
 
     #Build Eqn 5:
     def build_Fme(self):
         Fme = self.get_F('ov').copy()
         Fme += ndot('nf,mnef->me', self.t1, self.get_MO('oovv'), prefactor=2.0)
-        Fme += ndot('nf,mnfe->me', self.t1, self.get_MO('oovv'), prefactor=-1.0)
+        Fme += ndot(
+            'nf,mnfe->me', self.t1, self.get_MO('oovv'), prefactor=-1.0)
         return Fme
-
 
     #Build Eqn 6:
     def build_Wmnij(self):
@@ -310,9 +336,12 @@ class HelperCCEnergy(object):
         Wmnij += ndot('je,mnie->mnij', self.t1, self.get_MO('ooov'))
         Wmnij += ndot('ie,mnej->mnij', self.t1, self.get_MO('oovo'))
 
-        Wmnij += ndot('ijef,mnef->mnij', self.build_tau(), self.get_MO('oovv'), prefactor=1.0)
+        Wmnij += ndot(
+            'ijef,mnef->mnij',
+            self.build_tau(),
+            self.get_MO('oovv'),
+            prefactor=1.0)
         return Wmnij
-
 
     #Build Eqn 8:
     def build_Wmbej(self):
@@ -325,8 +354,10 @@ class HelperCCEnergy(object):
 
         Wmbej -= ndot('jnfb,mnef->mbej', tmp, self.get_MO('oovv'))
 
-        Wmbej += ndot('njfb,mnef->mbej', self.t2, self.get_MO('oovv'), prefactor=1.0)
-        Wmbej += ndot('njfb,mnfe->mbej', self.t2, self.get_MO('oovv'), prefactor=-0.5)
+        Wmbej += ndot(
+            'njfb,mnef->mbej', self.t2, self.get_MO('oovv'), prefactor=1.0)
+        Wmbej += ndot(
+            'njfb,mnfe->mbej', self.t2, self.get_MO('oovv'), prefactor=-0.5)
         return Wmbej
 
     def build_Wmbje(self):
@@ -361,14 +392,20 @@ class HelperCCEnergy(object):
         r_T1 += ndot('imae,me->ia', self.t2, Fme, prefactor=2.0)
         r_T1 += ndot('imea,me->ia', self.t2, Fme, prefactor=-1.0)
 
-        r_T1 += ndot('nf,nafi->ia', self.t1, self.get_MO('ovvo'), prefactor=2.0)
-        r_T1 += ndot('nf,naif->ia', self.t1, self.get_MO('ovov'), prefactor=-1.0)
+        r_T1 += ndot(
+            'nf,nafi->ia', self.t1, self.get_MO('ovvo'), prefactor=2.0)
+        r_T1 += ndot(
+            'nf,naif->ia', self.t1, self.get_MO('ovov'), prefactor=-1.0)
 
-        r_T1 += ndot('mief,maef->ia', self.t2, self.get_MO('ovvv'), prefactor=2.0)
-        r_T1 += ndot('mife,maef->ia', self.t2, self.get_MO('ovvv'), prefactor=-1.0)
+        r_T1 += ndot(
+            'mief,maef->ia', self.t2, self.get_MO('ovvv'), prefactor=2.0)
+        r_T1 += ndot(
+            'mife,maef->ia', self.t2, self.get_MO('ovvv'), prefactor=-1.0)
 
-        r_T1 -= ndot('mnae,nmei->ia', self.t2, self.get_MO('oovo'), prefactor=2.0)
-        r_T1 -= ndot('mnae,nmie->ia', self.t2, self.get_MO('ooov'), prefactor=-1.0)
+        r_T1 -= ndot(
+            'mnae,nmei->ia', self.t2, self.get_MO('oovo'), prefactor=2.0)
+        r_T1 -= ndot(
+            'mnae,nmie->ia', self.t2, self.get_MO('ooov'), prefactor=-1.0)
 
         ### Build RHS side of self.t2 equations
         r_T2 = self.get_MO('oovv').copy()
@@ -376,25 +413,24 @@ class HelperCCEnergy(object):
         # P^(ab)_(ij) {t_ijae Fae_be }
         tmp = ndot('ijae,be->ijab', self.t2, Fae)
         r_T2 += tmp
-        r_T2 += tmp.swapaxes(0,1).swapaxes(2,3)
+        r_T2 += tmp.swapaxes(0, 1).swapaxes(2, 3)
 
         # P^(ab)_(ij) {-0.5 * t_ijae t_mb Fme_me }
         tmp = ndot('mb,me->be', self.t1, Fme)
         first = ndot('ijae,be->ijab', self.t2, tmp, prefactor=0.5)
         r_T2 -= first
-        r_T2 -= first.swapaxes(0,1).swapaxes(2,3)
+        r_T2 -= first.swapaxes(0, 1).swapaxes(2, 3)
 
         # P^(ab)_(ij) {-t_imab Fmi_mj }
         tmp = ndot('imab,mj->ijab', self.t2, Fmi, prefactor=1.0)
         r_T2 -= tmp
-        r_T2 -= tmp.swapaxes(0,1).swapaxes(2,3)
+        r_T2 -= tmp.swapaxes(0, 1).swapaxes(2, 3)
 
         # P^(ab)_(ij) {-0.5 * t_imab t_je Fme_me }
         tmp = ndot('je,me->jm', self.t1, Fme)
         first = ndot('imab,jm->ijab', self.t2, tmp, prefactor=0.5)
         r_T2 -= first
-        r_T2 -= first.swapaxes(0,1).swapaxes(2,3)
-
+        r_T2 -= first.swapaxes(0, 1).swapaxes(2, 3)
 
         # tau_mnab Wmnij_mnij + tau_ijef <ab|ef> }
         tmp_tau = self.build_tau()
@@ -403,19 +439,21 @@ class HelperCCEnergy(object):
         Wmbje = self.build_Wmbje()
         Zmbij = self.build_Zmbij()
 
-
         r_T2 += ndot('mnab,mnij->ijab', tmp_tau, Wmnij, prefactor=1.0)
-        r_T2 += ndot('ijef,abef->ijab', tmp_tau, self.get_MO('vvvv'), prefactor=1.0)
+        r_T2 += ndot(
+            'ijef,abef->ijab', tmp_tau, self.get_MO('vvvv'), prefactor=1.0)
 
         # P^(ab)_(ij) {t_ie <ab|ej> }
-        tmp = ndot('ie,abej->ijab', self.t1, self.get_MO('vvvo'), prefactor=1.0)
+        tmp = ndot(
+            'ie,abej->ijab', self.t1, self.get_MO('vvvo'), prefactor=1.0)
         r_T2 += tmp
-        r_T2 += tmp.swapaxes(0,1).swapaxes(2,3)
+        r_T2 += tmp.swapaxes(0, 1).swapaxes(2, 3)
 
         # P^(ab)_(ij) {-t_ma <mb|ij> }
-        tmp = ndot('ma,mbij->ijab', self.t1, self.get_MO('ovoo'), prefactor=1.0)
+        tmp = ndot(
+            'ma,mbij->ijab', self.t1, self.get_MO('ovoo'), prefactor=1.0)
         r_T2 -= tmp
-        r_T2 -= tmp.swapaxes(0,1).swapaxes(2,3)
+        r_T2 -= tmp.swapaxes(0, 1).swapaxes(2, 3)
 
         # P...
         r_T2 += ndot('imae,mbej->ijab', self.t2, Wmbej, prefactor=1.0)
@@ -450,7 +488,6 @@ class HelperCCEnergy(object):
         r_T2 -= ndot('ma,mbij->ijab', self.t1, Zmbij)
         r_T2 -= ndot('ma,mbij->jiba', self.t1, Zmbij)
 
-
         ### Update T1 and T2 amplitudes
         self.t1 += r_T1 / self.Dia
         self.t2 += r_T2 / self.Dijab
@@ -460,12 +497,13 @@ class HelperCCEnergy(object):
 
         return np.sqrt(rms)
 
-
     def compute_corr_energy(self):
         CCSDcorr_E = 2.0 * np.einsum('ia,ia->', self.get_F('ov'), self.t1)
         tmp_tau = self.build_tau()
-        CCSDcorr_E += 2.0 * np.einsum('ijab,ijab->', tmp_tau, self.get_MO('oovv'))
-        CCSDcorr_E -= 1.0 * np.einsum('ijab,ijba->', tmp_tau, self.get_MO('oovv'))
+        CCSDcorr_E += 2.0 * np.einsum('ijab,ijab->', tmp_tau,
+                                      self.get_MO('oovv'))
+        CCSDcorr_E -= 1.0 * np.einsum('ijab,ijba->', tmp_tau,
+                                      self.get_MO('oovv'))
 
         self.ccsd_corr_e = CCSDcorr_E
         self.ccsd_e = self.rhf_e + self.ccsd_corr_e
@@ -557,8 +595,8 @@ class HelperCCEnergy(object):
             # End DIIS amplitude update
             # End HelperCCEnergy class
 
-class HelperCCHbar(object):
 
+class HelperCCHbar(object):
     def __init__(self, ccsd, memory=2):
 
         # Integral generation from Psi4's MintsHelper
@@ -575,9 +613,12 @@ class HelperCCHbar(object):
         self.slice_o = slice(self.nfzc, self.nocc + self.nfzc)
         self.slice_v = slice(self.nocc + self.nfzc, self.nmo)
         self.slice_a = slice(0, self.nmo)
-        self.slice_dict = {'f': self.slice_nfzc, 'o' : self.slice_o, 'v' : self.slice_v,
-                           'a' : self.slice_a}
-
+        self.slice_dict = {
+            'f': self.slice_nfzc,
+            'o': self.slice_o,
+            'v': self.slice_v,
+            'a': self.slice_a
+        }
 
         self.F = ccsd.F
         self.Dia = ccsd.Dia
@@ -590,7 +631,7 @@ class HelperCCHbar(object):
 
         tmp = self.MO.copy()
         self.L = 2.0 * tmp
-        self.L -= tmp.swapaxes(2,3)
+        self.L -= tmp.swapaxes(2, 3)
 
         self.build_Hov()
         #print('\n Hov \n')
@@ -636,7 +677,7 @@ class HelperCCHbar(object):
             psi4.core.clean()
             raise Exception('get_MO: string %s must have 4 elements.' % string)
         return self.MO[self.slice_dict[string[0]], self.slice_dict[string[1]],
-                     self.slice_dict[string[2]], self.slice_dict[string[3]]]
+                       self.slice_dict[string[2]], self.slice_dict[string[3]]]
 
     def get_L(self, string):
         if len(string) != 4:
@@ -644,7 +685,6 @@ class HelperCCHbar(object):
             raise Exception('get_L: string %s must have 4 elements.' % string)
         return (self.L[self.slice_dict[string[0]], self.slice_dict[string[1]],
                        self.slice_dict[string[2]], self.slice_dict[string[3]]])
-
 
     def get_F(self, string):
         if len(string) != 2:
@@ -679,14 +719,18 @@ class HelperCCHbar(object):
 
     def build_Hoooo(self):
         self.Hoooo = self.get_MO('oooo').copy()
-        self.Hoooo += ndot('je,mnie->mnij', self.t1, self.get_MO('ooov'), prefactor=2.0)
-        self.Hoooo += ndot('mnef,ijef->mnij', self.get_MO('oovv'), self.build_tau())
+        self.Hoooo += ndot(
+            'je,mnie->mnij', self.t1, self.get_MO('ooov'), prefactor=2.0)
+        self.Hoooo += ndot('mnef,ijef->mnij',
+                           self.get_MO('oovv'), self.build_tau())
         return self.Hoooo
 
     def build_Hvvvv(self):
         self.Hvvvv = self.get_MO('vvvv').copy()
-        self.Hvvvv -= ndot('mb,amef->abef', self.t1, self.get_MO('vovv'), prefactor=2.0)
-        self.Hvvvv += ndot('mnab,mnef->abef', self.build_tau(), self.get_MO('oovv'))
+        self.Hvvvv -= ndot(
+            'mb,amef->abef', self.t1, self.get_MO('vovv'), prefactor=2.0)
+        self.Hvvvv += ndot('mnab,mnef->abef',
+                           self.build_tau(), self.get_MO('oovv'))
         return self.Hvvvv
 
     def build_Hvovv(self):
@@ -703,7 +747,8 @@ class HelperCCHbar(object):
         self.Hovvo = self.get_MO('ovvo').copy()
         self.Hovvo += ndot('jf,mbef->mbej', self.t1, self.get_MO('ovvv'))
         self.Hovvo -= ndot('nb,mnej->mbej', self.t1, self.get_MO('oovo'))
-        self.Hovvo -= ndot('njbf,mnef->mbej', self.build_tau(), self.get_MO('oovv'))
+        self.Hovvo -= ndot('njbf,mnef->mbej',
+                           self.build_tau(), self.get_MO('oovv'))
         self.Hovvo += ndot('njfb,mnef->mbej', self.t2, self.get_L('oovv'))
         return self.Hovvo
 
@@ -711,58 +756,66 @@ class HelperCCHbar(object):
         self.Hovov = self.get_MO('ovov').copy()
         self.Hovov += ndot('jf,bmef->mbje', self.t1, self.get_MO('vovv'))
         self.Hovov -= ndot('nb,mnje->mbje', self.t1, self.get_MO('ooov'))
-        self.Hovov -= ndot('jnfb,nmef->mbje', self.build_tau(), self.get_MO('oovv'))
+        self.Hovov -= ndot('jnfb,nmef->mbje',
+                           self.build_tau(), self.get_MO('oovv'))
         return self.Hovov
 
     def build_Hvvvo(self):
-        self.Hvvvo =  self.get_MO('vvvo').copy()
+        self.Hvvvo = self.get_MO('vvvo').copy()
         self.Hvvvo += ndot('if,abef->abei', self.t1, self.get_MO('vvvv'))
         self.Hvvvo -= ndot('mb,amei->abei', self.t1, self.get_MO('vovo'))
         self.Hvvvo -= ndot('ma,bmie->abei', self.t1, self.get_MO('voov'))
-        self.Hvvvo -= ndot('imfa,mbef->abei', self.build_tau(), self.get_MO('ovvv'))
-        self.Hvvvo -= ndot('imfb,amef->abei', self.build_tau(), self.get_MO('vovv'))
-        self.Hvvvo += ndot('mnab,mnei->abei', self.build_tau(), self.get_MO('oovo'))
+        self.Hvvvo -= ndot('imfa,mbef->abei',
+                           self.build_tau(), self.get_MO('ovvv'))
+        self.Hvvvo -= ndot('imfb,amef->abei',
+                           self.build_tau(), self.get_MO('vovv'))
+        self.Hvvvo += ndot('mnab,mnei->abei',
+                           self.build_tau(), self.get_MO('oovo'))
         self.Hvvvo -= ndot('me,miab->abei', self.get_F('ov'), self.t2)
         self.Hvvvo += ndot('mifb,amef->abei', self.t2, self.get_L('vovv'))
-        tmp =    ndot('mnef,if->mnei', self.get_MO('oovv'), self.t1)
+        tmp = ndot('mnef,if->mnei', self.get_MO('oovv'), self.t1)
         self.Hvvvo += ndot('mnab,mnei->abei', self.t2, tmp)
-        tmp =    ndot('mnef,ma->anef', self.get_MO('oovv'), self.t1)
+        tmp = ndot('mnef,ma->anef', self.get_MO('oovv'), self.t1)
         self.Hvvvo += ndot('infb,anef->abei', self.t2, tmp)
-        tmp =    ndot('mnef,nb->mefb', self.get_MO('oovv'), self.t1)
+        tmp = ndot('mnef,nb->mefb', self.get_MO('oovv'), self.t1)
         self.Hvvvo += ndot('miaf,mefb->abei', self.t2, tmp)
-        tmp =    ndot('mnfe,mf->ne', self.get_L('oovv'), self.t1)
+        tmp = ndot('mnfe,mf->ne', self.get_L('oovv'), self.t1)
         self.Hvvvo -= ndot('niab,ne->abei', self.t2, tmp)
-        tmp =    ndot('mnfe,na->mafe', self.get_L('oovv'), self.t1)
+        tmp = ndot('mnfe,na->mafe', self.get_L('oovv'), self.t1)
         self.Hvvvo -= ndot('mifb,mafe->abei', self.t2, tmp)
-        tmp1 =   ndot('if,ma->imfa', self.t1, self.t1)
-        tmp2 =   ndot('mnef,nb->mbef', self.get_MO('oovv'), self.t1)
+        tmp1 = ndot('if,ma->imfa', self.t1, self.t1)
+        tmp2 = ndot('mnef,nb->mbef', self.get_MO('oovv'), self.t1)
         self.Hvvvo += ndot('imfa,mbef->abei', tmp1, tmp2)
         return self.Hvvvo
 
     def build_Hovoo(self):
-        self.Hovoo =  self.get_MO('ovoo').copy()
+        self.Hovoo = self.get_MO('ovoo').copy()
         self.Hovoo += ndot('mbie,je->mbij', self.get_MO('ovov'), self.t1)
         self.Hovoo += ndot('ie,bmje->mbij', self.t1, self.get_MO('voov'))
         self.Hovoo -= ndot('nb,mnij->mbij', self.t1, self.get_MO('oooo'))
-        self.Hovoo -= ndot('ineb,nmje->mbij', self.build_tau(), self.get_MO('ooov'))
-        self.Hovoo -= ndot('jneb,mnie->mbij', self.build_tau(), self.get_MO('ooov'))
-        self.Hovoo += ndot('ijef,mbef->mbij', self.build_tau(), self.get_MO('ovvv'))
+        self.Hovoo -= ndot('ineb,nmje->mbij',
+                           self.build_tau(), self.get_MO('ooov'))
+        self.Hovoo -= ndot('jneb,mnie->mbij',
+                           self.build_tau(), self.get_MO('ooov'))
+        self.Hovoo += ndot('ijef,mbef->mbij',
+                           self.build_tau(), self.get_MO('ovvv'))
         self.Hovoo += ndot('me,ijeb->mbij', self.get_F('ov'), self.t2)
         self.Hovoo += ndot('njeb,mnie->mbij', self.t2, self.get_L('ooov'))
-        tmp =    ndot('mnef,jf->mnej', self.get_MO('oovv'), self.t1)
+        tmp = ndot('mnef,jf->mnej', self.get_MO('oovv'), self.t1)
         self.Hovoo -= ndot('ineb,mnej->mbij', self.t2, tmp)
-        tmp =    ndot('mnef,ie->mnif', self.get_MO('oovv'), self.t1)
+        tmp = ndot('mnef,ie->mnif', self.get_MO('oovv'), self.t1)
         self.Hovoo -= ndot('jnfb,mnif->mbij', self.t2, tmp)
-        tmp =    ndot('mnef,nb->mefb', self.get_MO('oovv'), self.t1)
+        tmp = ndot('mnef,nb->mefb', self.get_MO('oovv'), self.t1)
         self.Hovoo -= ndot('ijef,mefb->mbij', self.t2, tmp)
-        tmp =    ndot('mnef,njfb->mejb', self.get_L('oovv'), self.t2)
+        tmp = ndot('mnef,njfb->mejb', self.get_L('oovv'), self.t2)
         self.Hovoo += ndot('mejb,ie->mbij', tmp, self.t1)
-        tmp =    ndot('mnef,nf->me', self.get_L('oovv'), self.t1)
+        tmp = ndot('mnef,nf->me', self.get_L('oovv'), self.t1)
         self.Hovoo += ndot('me,ijeb->mbij', tmp, self.t2)
-        tmp1 =   ndot('ie,jf->ijef', self.t1, self.t1)
-        tmp2 =   ndot('mnef,nb->mbef', self.get_MO('oovv'), self.t1)
+        tmp1 = ndot('ie,jf->ijef', self.t1, self.t1)
+        tmp2 = ndot('mnef,nb->mbef', self.get_MO('oovv'), self.t1)
         self.Hovoo -= ndot('mbef,ijef->mbij', tmp2, tmp1)
         return self.Hovoo
+
 
 class HelperCCEom(object):
     """
@@ -807,7 +860,9 @@ class HelperCCEom(object):
         self.nocc = ccsd.ndocc
         self.nvir = ccsd.nmo - ccsd.nocc - ccsd.nfzc
         self.nsingles = self.ndocc * self.nvir
+        self.ia_shape = (self.ndocc, self.nvir)
         self.ndoubles = self.ndocc * self.ndocc * self.nvir * self.nvir
+        self.ijab_shape = (self.ndocc, self.ndocc, self.nvir, self.nvir)
 
         # Steal integrals/amps from ccsd
         self.MO = ccsd.MO
@@ -960,6 +1015,7 @@ class HelperCCEom(object):
         S_2 += ndot('miea,mbej->ijab', B2, self.Hovvo, prefactor=2.0)
         S_2 += ndot('miea,mbje->ijab', B2, self.Hovov, prefactor=-1.0)
         return S_2 + S_2.swapaxes(0, 1).swapaxes(2, 3)
+
 
 if __name__ == "__main__":
     arr4 = np.random.rand(4, 4, 4, 4)
