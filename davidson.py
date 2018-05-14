@@ -23,6 +23,8 @@ def davidson_solver(ax_function, preconditioner, guess, e_conv=1.0E-8,
         Convergence tolerance for residual vectors
     no_eigs : int
         Number of eigenvalues needed
+    max_vecs_per_root : int
+        Maximum number of vectors per root before subspace collapse.
     maxiter : int
         The maximum number of iterations this function will take.
 
@@ -37,7 +39,7 @@ def davidson_solver(ax_function, preconditioner, guess, e_conv=1.0E-8,
 
     """
 
-    print("Starting Davidson aglo:")
+    print("Starting Davidson algo:")
     print("options:")
     for k,v in dict(e_conv=e_conv, r_conv=r_conv, no_eigs=no_eigs,
             max_vecs_per_root = max_vecs_per_root, maxiter=maxiter).items():
@@ -69,7 +71,7 @@ def davidson_solver(ax_function, preconditioner, guess, e_conv=1.0E-8,
         # active_mask = [True for x in range(nl)] # never used later
         # Apply QR decomposition on B to orthogonalize the new vectors wrto all other subspace vectors
         ## orthogonalize preconditioned residuals against all other vectors in the search subspace
-        B, r = np.linalg.qr(B)
+        #B, r = np.linalg.qr(B)
         nl = B.shape[1]
 
         print("Davidson: Iter={:<3} nl = {:<4}".format(count, nl))
@@ -110,7 +112,7 @@ def davidson_solver(ax_function, preconditioner, guess, e_conv=1.0E-8,
         norm = np.zeros(no_eigs)
         new_Bs = []
         # Only need a residual for each desired root, not one for each guess
-        force_colapse = False
+        force_collapse = False
         for i in range(no_eigs):
             if conv_roots[i]:
                 print("    ROOT {:<3}: CONVERGED!".format(i))
@@ -126,7 +128,7 @@ def davidson_solver(ax_function, preconditioner, guess, e_conv=1.0E-8,
                 norm[i]))
             conv_roots[i] = (de < e_conv) and (norm[i] < r_conv)
             if conv_roots[i]:
-                force_colapse = True
+                force_collapse = True
             else:
                 new_Bs.append(precon_resid)
 
@@ -145,12 +147,17 @@ def davidson_solver(ax_function, preconditioner, guess, e_conv=1.0E-8,
                 print("{:<3}|{:<20.12f}".format(i, val))
             return A_w, retvecs
         else:
-            if force_colapse:
+            if force_collapse:
                 B = np.dot(B, A_v)
             n_left_to_converge = np.count_nonzero(np.logical_not(conv_roots))
             n_converged = np.count_nonzero(conv_roots)
             max_ss_size = n_converged + (n_left_to_converge * max_vecs_per_root)
-            B = np.column_stack(tuple(B[:, i] for i in range(B.shape[-1])) + tuple(new_Bs))
+            #B = np.column_stack(tuple(B[:, i] for i in range(B.shape[-1])) + tuple(new_Bs))
+            for i in range(new_Bs.shape[1])
+                B.transpose_this()
+                B.add_and_orthogonalize_row(new_Bs[:,i])
+                B.transpose_this()
+
         count += 1
 
     if not converged:
