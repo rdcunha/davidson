@@ -1,5 +1,6 @@
 # Generalized Davidson solver
 
+import psi4
 import numpy as np
 
 np.set_printoptions(precision=12, suppress=True)
@@ -63,7 +64,7 @@ def davidson_solver(ax_function, preconditioner, guess, e_conv=1.0E-8,
     count = 0
     A_w_old = np.ones(no_eigs)
     max_ss_size = no_eigs * max_vecs_per_root
-    B = guess
+    B = psi4.core.Matrix.from_array(guess)
 
     ### begin loop
     conv_roots = [False] * no_eigs
@@ -110,7 +111,7 @@ def davidson_solver(ax_function, preconditioner, guess, e_conv=1.0E-8,
         # else, build residual vectors
         ## residual_i = sum(j) sigma_j* eigvec_i - eigval_i * B_j * eigvec_i
         norm = np.zeros(no_eigs)
-        new_Bs = []
+        new_Bs = np.zeros((B.shape[0], B.shape[1]))
         # Only need a residual for each desired root, not one for each guess
         force_collapse = False
         for i in range(no_eigs):
@@ -130,7 +131,7 @@ def davidson_solver(ax_function, preconditioner, guess, e_conv=1.0E-8,
             if conv_roots[i]:
                 force_collapse = True
             else:
-                new_Bs.append(precon_resid)
+                np.append(new_Bs, precon_resid)
 
         # check for convergence by diff of eigvals and residual norms
         # r_norm = np.linalg.norm(norm)
@@ -153,9 +154,10 @@ def davidson_solver(ax_function, preconditioner, guess, e_conv=1.0E-8,
             n_converged = np.count_nonzero(conv_roots)
             max_ss_size = n_converged + (n_left_to_converge * max_vecs_per_root)
             #B = np.column_stack(tuple(B[:, i] for i in range(B.shape[-1])) + tuple(new_Bs))
-            for i in range(new_Bs.shape[1])
+            for i in range(new_Bs.shape[1]):
+                vec = psi4.core.Vector.from_array(new_Bs[:,i])
                 B.transpose_this()
-                B.add_and_orthogonalize_row(new_Bs[:,i])
+                B.add_and_orthogonalize_row(vec)
                 B.transpose_this()
 
         count += 1
