@@ -78,11 +78,12 @@ def davidson_solver(ax_function, preconditioner, guess, e_conv=1.0E-8,
         print("Davidson: Iter={:<3} nl = {:<4}".format(count, nl))
         # compute sigma vectors corresponding to the new vectors sigma_i = A B_i
         sigma = np.zeros_like(B)
+        temp = B.to_array()
         for i in range(nl):
-            sigma[:,i] = ax_function(B[:,i])
+            sigma[:,i] = ax_function(temp[:,i])
 
         # compute subspace matrix A_b = Btranspose sigma
-        A_b = np.dot(B.T, sigma)
+        A_b = np.dot(temp.T, sigma)
 
         # solve eigenvalue problem for subspace matrix; choose n lowest eigenvalue eigpairs
         A_w, A_v = np.linalg.eig(A_b)
@@ -106,7 +107,8 @@ def davidson_solver(ax_function, preconditioner, guess, e_conv=1.0E-8,
         # here, check if no residuals > max no residuals, if so, collapse subspace
         if nl >= max_ss_size:
             print("Subspace too big. Collapsing.\n")
-            B = np.dot(B, A_v)
+            temp = np.dot(temp, A_v)
+            B = psi4.core.Matrix.from_array(temp)
             continue
         # else, build residual vectors
         ## residual_i = sum(j) sigma_j* eigvec_i - eigval_i * B_j * eigvec_i
@@ -149,16 +151,17 @@ def davidson_solver(ax_function, preconditioner, guess, e_conv=1.0E-8,
             return A_w, retvecs
         else:
             if force_collapse:
-                B = np.dot(B, A_v)
+                temp = np.dot(temp, A_v)
+                B = psi4.core.Matrix.from_array(temp)
             n_left_to_converge = np.count_nonzero(np.logical_not(conv_roots))
             n_converged = np.count_nonzero(conv_roots)
             max_ss_size = n_converged + (n_left_to_converge * max_vecs_per_root)
             #B = np.column_stack(tuple(B[:, i] for i in range(B.shape[-1])) + tuple(new_Bs))
             for i in range(new_Bs.shape[1]):
                 vec = psi4.core.Vector.from_array(new_Bs[:,i])
-                B.transpose_this()
+                B = B.transpose()
                 B.add_and_orthogonalize_row(vec)
-                B.transpose_this()
+                B = B.transpose()
 
         count += 1
 
