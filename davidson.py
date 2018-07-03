@@ -65,6 +65,7 @@ def davidson_solver(ax_function, preconditioner, guess, e_conv=1.0E-8,
     A_w_old = np.ones(no_eigs)
     max_ss_size = no_eigs * max_vecs_per_root
     B = psi4.core.Matrix.from_array(guess)
+    temp = B.to_array()
 
     ### begin loop
     conv_roots = [False] * no_eigs
@@ -72,16 +73,22 @@ def davidson_solver(ax_function, preconditioner, guess, e_conv=1.0E-8,
         # active_mask = [True for x in range(nl)] # never used later
         # Apply QR decomposition on B to orthogonalize the new vectors wrto all other subspace vectors
         ## orthogonalize preconditioned residuals against all other vectors in the search subspace
-        #B, r = np.linalg.qr(B)
-        nl = B.shape[1]
+        #temp, r = np.linalg.qr(temp)
+        nl = temp.shape[1]
 
+        #if(count > 0):
+        #    if(np.allclose(temp, temp1) ):
+        #        print("Orthogonalization equal")
+        #    else:
+        #        print("Orthogonalization not equal")
         print("Davidson: Iter={:<3} nl = {:<4}".format(count, nl))
         # compute sigma vectors corresponding to the new vectors sigma_i = A B_i
-        sigma = np.zeros_like(B)
-        temp = B.to_array()
+        sigma = np.zeros_like(temp)
+        #temp = B.to_array()
         for i in range(nl):
             sigma[:,i] = ax_function(temp[:,i])
 
+        sigma_m = psi4.core.Matrix.from_array(sigma)
         # compute subspace matrix A_b = Btranspose sigma
         A_b = np.dot(temp.T, sigma)
 
@@ -113,14 +120,14 @@ def davidson_solver(ax_function, preconditioner, guess, e_conv=1.0E-8,
         # else, build residual vectors
         ## residual_i = sum(j) sigma_j* eigvec_i - eigval_i * B_j * eigvec_i
         norm = np.zeros(no_eigs)
-        new_Bs = np.zeros((B.shape[0], B.shape[1]))
+        new_Bs = []
         # Only need a residual for each desired root, not one for each guess
         force_collapse = False
         for i in range(no_eigs):
             if conv_roots[i]:
                 print("    ROOT {:<3}: CONVERGED!".format(i))
                 continue
-            residual = np.dot(sigma, A_v[:, i]) - A_w[i] * np.dot(B, A_v[:,i])
+            residual = np.dot(sigma, A_v[:, i]) - A_w[i] * np.dot(temp, A_v[:,i])
 
             # check for convergence by norm of residuals
             norm[i] = np.linalg.norm(residual)
@@ -133,7 +140,7 @@ def davidson_solver(ax_function, preconditioner, guess, e_conv=1.0E-8,
             if conv_roots[i]:
                 force_collapse = True
             else:
-                np.append(new_Bs, precon_resid)
+                new_Bs.append(precon_resid)
 
         # check for convergence by diff of eigvals and residual norms
         # r_norm = np.linalg.norm(norm)
@@ -145,7 +152,7 @@ def davidson_solver(ax_function, preconditioner, guess, e_conv=1.0E-8,
             print("Davidson converged at iteration number {}".format(count))
             print("{:<3}|{:^20}|".format('count','eigenvalues'))
             print("{:<3}|{:^20}|".format('='*3, '='*20))
-            retvecs = np.dot(B,A_v)
+            retvecs = np.dot(temp,A_v)
             for i, val in enumerate(A_w):
                 print("{:<3}|{:<20.12f}".format(i, val))
             return A_w, retvecs
@@ -156,12 +163,16 @@ def davidson_solver(ax_function, preconditioner, guess, e_conv=1.0E-8,
             n_left_to_converge = np.count_nonzero(np.logical_not(conv_roots))
             n_converged = np.count_nonzero(conv_roots)
             max_ss_size = n_converged + (n_left_to_converge * max_vecs_per_root)
-            #B = np.column_stack(tuple(B[:, i] for i in range(B.shape[-1])) + tuple(new_Bs))
-            for i in range(new_Bs.shape[1]):
-                vec = psi4.core.Vector.from_array(new_Bs[:,i])
+            #temp = np.column_stack(tuple(temp[:, i] for i in range(temp.shape[-1])) + tuple(new_Bs))
+            new_b = np.asarray(new_Bs)
+            for i in range(new_b.shape[0]):
+                vec = psi4.core.Vector.from_array(new_b[i,:])
+                #print("Shape of new_b: {} \nShape of vector: {} \nShape of B: {}".format(new_b.shape, vec.shape, B.shape))
                 B = B.transpose()
                 B.add_and_orthogonalize_row(vec)
                 B = B.transpose()
+
+            temp = B.to_array()
 
         count += 1
 
